@@ -1,0 +1,6 @@
+@GtfsFeedValidator_HostAddress = http://localhost:5110
+
+GET {{GtfsFeedValidator_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
