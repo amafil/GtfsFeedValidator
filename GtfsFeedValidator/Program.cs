@@ -1,5 +1,6 @@
 using GtfsFeedValidator.Configuration;
 using GtfsFeedValidator.Endpoints;
+using GtfsFeedValidator.Middleware;
 using GtfsFeedValidator.Services;
 
 namespace GtfsFeedValidator;
@@ -14,11 +15,14 @@ public class Program
         // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
         builder.Services.AddEndpointsApiExplorer();
         builder.Services.AddSwaggerGen();
-        builder.Services.AddHostedService<GtfsValidatorWorker>();
+
         builder.Services.AddOptions<GtfsValidatorSettings>()
             .BindConfiguration(GtfsValidatorSettings.Path);
 
         builder.Services.AddScoped<IGtfsFeedValidatorService, GtfsFeedValidatorService>();
+        builder.Services.AddSingleton<IGtfsFeedValidatorWorkerService, GtfsFeedValidatorWorkerService>();
+
+        builder.Services.AddHostedService<GtfsValidatorWorker>();
 
         var app = builder.Build();
 
@@ -32,6 +36,8 @@ public class Program
         app.UseHttpsRedirection();
 
         app.MapEndpoints();
+
+        app.UseMiddleware<ExceptionHandlingMiddleware>();
 
         app.Run();
 

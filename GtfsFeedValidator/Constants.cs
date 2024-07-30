@@ -2,7 +2,8 @@
 {
     public static class Constants
     {
-        public const string ValidationQueueCollectionName = "validation_queue";
+        public const string GtfsFeedValidationCollectionName = "GtfsFeedValidation";
+        public const string GtfsFeedValidationResultCollectionName = "GtfsFeedValidationResult";
 
         public const string GtfsFeedValidationStatusPending = "Pending";
         public const string GtfsFeedValidationStatusProcessing = "Processing";

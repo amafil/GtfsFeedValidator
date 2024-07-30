@@ -1,15 +1,7 @@
 ﻿namespace GtfsFeedValidator.Models
 {
-    public record ValidationResult
+    public record GtfsValidatorOutput
     {
-        public ValidationResult(ValidationStatusEnum status)
-        {
-            Status = status;
-        }
-
-        public ValidationStatusEnum Status { get; set; }
-        public string? HtmlValidationResult { get; internal set; }
-
         public Summary? Summary { get; set; }
         public List<Notice>? Notices { get; set; }
     }

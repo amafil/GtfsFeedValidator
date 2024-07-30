@@ -1,4 +1,5 @@
-﻿using GtfsFeedValidator.Models;
+﻿using GtfsFeedValidator.Database;
+using GtfsFeedValidator.Models;
 using GtfsFeedValidator.Services;
 using Microsoft.AspNetCore.Mvc;
 using System.Text;
@@ -10,85 +11,92 @@ namespace GtfsFeedValidator.Endpoints
         public static void MapEndpoints(this IEndpointRouteBuilder app)
         {
             /*
-             * Metodo per l'upload del gtfs, ritorna un id univoco di sessione
+             * Method for uploading the GTFS file, returns a unique session ID
              * 
-             * 1. raccoglie il file gtfs e lo salva in una cartella temporanea
-             * 2. su LiteDB scrive il path del file da elaborare e il suo stato
-             * 3. ritorna l'id della sessione
+             * 1. Collects the GTFS file and saves it in a temporary folder
+             * 2. Writes the file path and its status to LiteDB
+             * 3. Returns the gtfsFeedValidationId
              * 
              */
             app.MapPost("/start-validation",
                 async ([FromServices] IGtfsFeedValidatorService gtfsFeedValidatorService, IFormFile file) =>
                 {
-                    string sessionId = await gtfsFeedValidatorService.StartValidationAsync(file);
+                    string gtfsFeedValidationId = await gtfsFeedValidatorService.StartValidationAsync(file);
 
-                    return Results.Accepted(uri: "/validation-status", sessionId);
+                    return Results.Accepted(uri: "/validation-result", gtfsFeedValidationId);
                 })
             .DisableAntiforgery()
             .WithName("Start GTFS Validation")
             .WithOpenApi();
 
             /*
-             * Metodo per recuperare lo stato di un'elaborazione e il risultato della validazione
+             * Method to retrieve the status of a processing and the validation result
              * 
-             * In input prende l'id della sessione
+             * Takes the gtfsFeedValidationId ID as input
              */
-            app.MapGet("/validation-result/{sessionId}",
-                ([FromServices] IGtfsFeedValidatorService gtfsFeedValidatorService, string sessionId) =>
+            app.MapGet("/validation-result/{gtfsFeedValidationId}",
+                ([FromServices] IGtfsFeedValidatorService gtfsFeedValidatorService, string gtfsFeedValidationId) =>
                 {
-                    ValidationResult validation = gtfsFeedValidatorService.GetValidationResult(sessionId);
+                    GtfsFeedJsonValidationResponse validation = gtfsFeedValidatorService.GetJsonValidationResult(gtfsFeedValidationId);
 
-                    return HandleValidationResult(validation, file: false);
+                    if (validation.Status == ValidationStatusEnum.NotFund)
+                    {
+                        return Results.NotFound();
+                    }
+
+                    if (validation.Status == ValidationStatusEnum.Error)
+                    {
+                        return Results.Problem(
+                            title: "Feed Validation Error",
+                            detail: "There was an error during feed validation",
+                            statusCode: StatusCodes.Status500InternalServerError);
+                    }
+
+                    if (validation.Status == ValidationStatusEnum.Awaiting)
+                    {
+                        return Results.NoContent();
+                    }
+
+                    return Results.Ok(validation);
                 })
             .WithName("Get GTFS Validation Result")
             .WithOpenApi();
 
             /*
-             * Metodo per scaricare la validazione in formato html
+             * Method for downloading the validation in HTML format
              * 
-             * In input prende l'id della sessione
+             * Takes the session ID as input
              */
-            app.MapGet("/validation-status/download/{sessionId}",
-                ([FromServices] IGtfsFeedValidatorService gtfsFeedValidatorService, string sessionId) =>
+            app.MapGet("/validation-result/download/{gtfsFeedValidationId}",
+                ([FromServices] IGtfsFeedValidatorService gtfsFeedValidatorService, string gtfsFeedValidationId) =>
                 {
+                    GtfsFeedHtmlValidationResponse validation = gtfsFeedValidatorService.GetHtmlValidationResult(gtfsFeedValidationId);
 
-                    ValidationResult validation = gtfsFeedValidatorService.GetValidationResult(sessionId);
+                    if (validation.Status == ValidationStatusEnum.NotFund)
+                    {
+                        return Results.NotFound();
+                    }
 
-                    return HandleValidationResult(validation, file: true);
+                    if (validation.Status == ValidationStatusEnum.Error)
+                    {
+                        return Results.Problem(
+                            title: "Feed Validation Error",
+                            detail: "There was an error during feed validation",
+                            statusCode: StatusCodes.Status500InternalServerError);
+                    }
+
+                    if (validation.Status == ValidationStatusEnum.Awaiting)
+                    {
+                        return Results.NoContent();
+                    }
+
+                    byte[] reportHtml = Encoding.UTF8.GetBytes(validation.ValidationResult);
+
+                    return Results.File(reportHtml, contentType: "text/html", fileDownloadName: "report.html");
                 })
             .WithName("Download HTML Validation Status")
             .WithOpenApi();
 
-        }
-
-        private static IResult HandleValidationResult(ValidationResult validation, bool file)
-        {
-            if (validation.Status == ValidationStatusEnum.NotFund)
-            {
-                return Results.NotFound();
-            }
-
-            if (validation.Status == ValidationStatusEnum.Error)
-            {
-                return Results.Problem(
-                    title: "Feed Validation Error",
-                    detail: "There was an error during feed validation",
-                    statusCode: StatusCodes.Status500InternalServerError);
-            }
-
-            if (validation.Status == ValidationStatusEnum.Awaiting)
-            {
-                return Results.NoContent();
-            }
-
-            if (file)
-            {
-                byte[] reportHtml = Encoding.UTF8.GetBytes(validation.HtmlValidationResult);
-
-                return Results.File(reportHtml, contentType: "text/html", fileDownloadName: "report.html");
-            }
-
-            return Results.Ok(validation);
         }
     }
 }

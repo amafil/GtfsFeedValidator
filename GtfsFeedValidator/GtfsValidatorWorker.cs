@@ -2,7 +2,7 @@
 
 namespace GtfsFeedValidator
 {
-    public sealed class GtfsValidatorWorker(IGtfsFeedValidatorService service, ILogger<GtfsValidatorWorker> logger) : BackgroundService
+    public sealed class GtfsValidatorWorker(IGtfsFeedValidatorWorkerService service, ILogger<GtfsValidatorWorker> logger) : BackgroundService
     {
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
