@@ -21,5 +21,5 @@ RUN dotnet publish "./GtfsFeedValidator.csproj" -c $BUILD_CONFIGURATION -o /app/
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
-COPY ["gtfs-validator.5.0.1-cli.jar", "."] 
+RUN wget https://github.com/MobilityData/gtfs-validator/releases/download/v5.0.1/gtfs-validator-5.0.1-cli.jar -O gtfs-validator.5.0.1-cli.jar
 ENTRYPOINT ["dotnet", "GtfsFeedValidator.dll"]
