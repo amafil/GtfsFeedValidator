@@ -13,7 +13,7 @@ namespace GtfsFeedValidator.Test
     {
         private readonly HttpClient _client;
 
-        private const string _filePath = @".\TestData\gtfs.zip";
+        private const string _filePath = @"./TestData/gtfs.zip";
         private const string _uri = "http://localhost:5001";
 
         public GtfsFeedValidatorTests()
