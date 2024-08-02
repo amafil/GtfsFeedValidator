@@ -1,13 +1,25 @@
-﻿using GtfsFeedValidator.Configuration;
+﻿using AutoMapper;
+using GtfsFeedValidator.Configuration;
 using GtfsFeedValidator.Database;
 using GtfsFeedValidator.Models;
+using GtfsFeedValidator.Models.Responses;
+using GtfsFeedValidator.Models.ValidatorOutput;
 using LiteDB;
 using Microsoft.Extensions.Options;
+using System.Text.Json;
 
 namespace GtfsFeedValidator.Services
 {
-    public class GtfsFeedValidatorService(IOptions<GtfsValidatorSettings> configuration, ILogger<IGtfsFeedValidatorService> logger) : IGtfsFeedValidatorService
+    public class GtfsFeedValidatorService(
+        IOptions<GtfsValidatorSettings> configuration,
+        IMapper mapper,
+        ILogger<IGtfsFeedValidatorService> logger) : IGtfsFeedValidatorService
     {
+        static readonly JsonSerializerOptions options = new()
+        {
+            PropertyNameCaseInsensitive = true
+        };
+
         public async Task<string> StartValidationAsync(IFormFile file)
         {
             string workingDirectoryFullPath = PrepareWorkingDirectory(configuration.Value.WorkingDirectory);
@@ -47,25 +59,22 @@ namespace GtfsFeedValidator.Services
             return sessionId;
         }
 
-        public GtfsFeedJsonValidationResponse GetJsonValidationResult(string gtfsFeedValidationId)
+        public GtfsFeedValidationResponse GetJsonValidationResult(string gtfsFeedValidationId)
         {
             GtfsFeedValidationDTO gtfsFeedValidation = GetValidationResult(gtfsFeedValidationId);
 
-            var result = new GtfsFeedJsonValidationResponse(gtfsFeedValidation.Status);
+            var result = new GtfsFeedValidationResponse(gtfsFeedValidation.Status);
 
             if (!string.IsNullOrWhiteSpace(gtfsFeedValidation.JsonValidationResult))
             {
-                result.ValidationResult = System.Text.Json.JsonSerializer.Deserialize<GtfsValidatorOutput>(
-                gtfsFeedValidation.JsonValidationResult,
-                new System.Text.Json.JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true
-                });
+                var validationResultOutput = System.Text.Json.JsonSerializer.Deserialize<GtfsValidatorOutput>(gtfsFeedValidation.JsonValidationResult, options);
 
-                if (result.ValidationResult is null)
+                if (validationResultOutput is null)
                 {
-                    return new GtfsFeedJsonValidationResponse(ValidationStatusEnum.Error);
+                    return new GtfsFeedValidationResponse(ValidationStatusEnum.Error);
                 }
+
+                result.ValidationResult = mapper.Map<GtfsValidatorOutput, GtfsValidatorResponse>(validationResultOutput);
             }
 
             return result;
@@ -113,7 +122,7 @@ namespace GtfsFeedValidator.Services
             {
                 JsonValidationResult = gtfsFeedJsonResultValidation.JsonValidationResult,
                 HtmlValidationResult = gtfsFeedJsonResultValidation.HtmlValidationResult
-            }; ;
+            };
         }
 
         private static string PrepareWorkingDirectory(string workingDirectory)
@@ -132,13 +141,23 @@ namespace GtfsFeedValidator.Services
 
             return result;
         }
+
+        public int GetApiStatus()
+        {
+            using var db = new LiteDatabase(configuration.Value.ConnectionString);
+            var gtfsFeedValidationCollection = db.GetCollection<GtfsFeedValidation>(Constants.GtfsFeedValidationCollectionName);
+
+            int gtfsFeedValidationCount = gtfsFeedValidationCollection.Count();
+
+            return gtfsFeedValidationCount;
+        }
     }
 
     public interface IGtfsFeedValidatorService
     {
         Task<string> StartValidationAsync(IFormFile file);
-        GtfsFeedJsonValidationResponse GetJsonValidationResult(string gtfsFeedValidationId);
+        GtfsFeedValidationResponse GetJsonValidationResult(string gtfsFeedValidationId);
         GtfsFeedHtmlValidationResponse GetHtmlValidationResult(string gtfsFeedValidationId);
-
+        int GetApiStatus();
     }
 }

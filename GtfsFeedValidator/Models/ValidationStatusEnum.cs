@@ -1,5 +1,8 @@
-﻿namespace GtfsFeedValidator.Models
+﻿using System.Text.Json.Serialization;
+
+namespace GtfsFeedValidator.Models
 {
+    [JsonConverter(typeof(JsonStringEnumConverter))]
     public enum ValidationStatusEnum
     {
         NotFund,

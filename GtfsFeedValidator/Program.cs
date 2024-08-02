@@ -1,7 +1,11 @@
+using GtfsFeedValidator.Automapper;
 using GtfsFeedValidator.Configuration;
 using GtfsFeedValidator.Endpoints;
 using GtfsFeedValidator.Middleware;
+using GtfsFeedValidator.Models;
 using GtfsFeedValidator.Services;
+using Microsoft.OpenApi.Models;
+using Swashbuckle.AspNetCore.SwaggerGen;
 
 namespace GtfsFeedValidator;
 
@@ -14,8 +18,11 @@ public class Program
         // Add services to the container.
         // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
         builder.Services.AddEndpointsApiExplorer();
-        builder.Services.AddSwaggerGen();
-
+        builder.Services.AddSwaggerGen(options =>
+        {
+            options.SwaggerDoc("v1", new OpenApiInfo { Title = "GtfsFeedValidator", Version = "v1" });
+            options.AddDocumentFilterInstance(new AdditionalSchemasDocumentFilter());
+        });
         builder.Services.AddOptions<GtfsValidatorSettings>()
             .BindConfiguration(GtfsValidatorSettings.Path);
 
@@ -24,10 +31,15 @@ public class Program
 
         builder.Services.AddHostedService<GtfsValidatorWorker>();
 
+        builder.Services.AddAutoMapper(config =>
+        {
+            config.AddProfile<AutomapperProfile>();
+        }, typeof(Program));
+
         var app = builder.Build();
 
         // Configure the HTTP request pipeline.
-        if (app.Environment.IsDevelopment())
+        if (app.Environment.IsDevelopment() || app.Environment.IsStaging())
         {
             app.UseSwagger();
             app.UseSwaggerUI();
@@ -41,5 +53,13 @@ public class Program
 
         app.Run();
 
+    }
+}
+
+internal class AdditionalSchemasDocumentFilter : IDocumentFilter
+{
+    public void Apply(OpenApiDocument swaggerDoc, DocumentFilterContext context)
+    {
+        context.SchemaGenerator.GenerateSchema(typeof(GtfsValidatorResponse), context.SchemaRepository);
     }
 }

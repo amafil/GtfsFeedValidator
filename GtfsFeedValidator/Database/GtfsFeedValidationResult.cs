@@ -1,6 +1,4 @@
-﻿using GtfsFeedValidator.Models;
-
-namespace GtfsFeedValidator.Database
+﻿namespace GtfsFeedValidator.Database
 {
     public record GtfsFeedValidationResult()
     {

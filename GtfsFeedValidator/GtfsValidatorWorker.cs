@@ -14,7 +14,7 @@ namespace GtfsFeedValidator
 
                 logger.LogDebug("ending validation");
 
-                await Task.Delay(5_000, stoppingToken);
+                await Task.Delay(Constants.WorkerMsPollingInterval, stoppingToken);
             }
         }
     }

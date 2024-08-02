@@ -1,7 +1,8 @@
-﻿using GtfsFeedValidator.Database;
-using GtfsFeedValidator.Models;
+﻿using GtfsFeedValidator.Models;
+using GtfsFeedValidator.Models.Responses;
 using GtfsFeedValidator.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.OpenApi.Models;
 using System.Text;
 
 namespace GtfsFeedValidator.Endpoints
@@ -26,18 +27,40 @@ namespace GtfsFeedValidator.Endpoints
                     return Results.Accepted(uri: "/validation-result", gtfsFeedValidationId);
                 })
             .DisableAntiforgery()
-            .WithName("Start GTFS Validation")
-            .WithOpenApi();
+            .WithName("Request GTFS Validation")
+            .WithOpenApi(generatedOperation =>
+            {
+                generatedOperation.Description = "Request a GTFS validation";
 
-            /*
-             * Method to retrieve the status of a processing and the validation result
-             * 
-             * Takes the gtfsFeedValidationId ID as input
-             */
+                generatedOperation.Responses.Remove(StatusCodes.Status200OK.ToString());
+                generatedOperation.Responses.Add("500", new OpenApiResponse { Description = "Error during feed validation enqueuing" });
+                generatedOperation.Responses.Add("202",
+                    new OpenApiResponse
+                    {
+                        Description = "Feed validation enqueued",
+                        Content = new Dictionary<string, OpenApiMediaType>
+                        {
+                            {
+                                "application/json",
+                                new OpenApiMediaType
+                                {
+                                    Schema = new OpenApiSchema
+                                    {
+                                        Type = "string",
+                                        Format = "uuid"
+                                    }
+                                }
+                            }
+                        }
+                    });
+
+                return generatedOperation;
+            });
+            
             app.MapGet("/validation-result/{gtfsFeedValidationId}",
                 ([FromServices] IGtfsFeedValidatorService gtfsFeedValidatorService, string gtfsFeedValidationId) =>
                 {
-                    GtfsFeedJsonValidationResponse validation = gtfsFeedValidatorService.GetJsonValidationResult(gtfsFeedValidationId);
+                    GtfsFeedValidationResponse validation = gtfsFeedValidatorService.GetJsonValidationResult(gtfsFeedValidationId);
 
                     if (validation.Status == ValidationStatusEnum.NotFund)
                     {
@@ -57,16 +80,25 @@ namespace GtfsFeedValidator.Endpoints
                         return Results.NoContent();
                     }
 
-                    return Results.Ok(validation);
+                    return Results.Ok(validation.ValidationResult);
                 })
             .WithName("Get GTFS Validation Result")
-            .WithOpenApi();
+            .WithOpenApi(generatedOperation =>
+            {
+                generatedOperation.Description = "Get the validation result";
 
-            /*
-             * Method for downloading the validation in HTML format
-             * 
-             * Takes the session ID as input
-             */
+                generatedOperation.Responses.Add("204", new OpenApiResponse { Description = "Validation is still in progress" });
+                generatedOperation.Responses.Add("404", new OpenApiResponse { Description = "Validation not found" });
+                generatedOperation.Responses.Add("500", new OpenApiResponse { Description = "Error during feed validation" });
+
+                var parameter = generatedOperation.Parameters[0];
+
+                parameter.Description = "Elaboration id returned from /start-validation";
+                parameter.Required = true;
+
+                return generatedOperation;
+            });
+
             app.MapGet("/validation-result/download/{gtfsFeedValidationId}",
                 ([FromServices] IGtfsFeedValidatorService gtfsFeedValidatorService, string gtfsFeedValidationId) =>
                 {
@@ -95,8 +127,28 @@ namespace GtfsFeedValidator.Endpoints
                     return Results.File(reportHtml, contentType: "text/html", fileDownloadName: "report.html");
                 })
             .WithName("Download HTML Validation Status")
-            .WithOpenApi();
+            .WithOpenApi(generatedOperation =>
+            {
+                generatedOperation.Description = "Download the validation result file in HTML format";
 
+                generatedOperation.Responses.Add("204", new OpenApiResponse { Description = "Validation is still in progress" });
+                generatedOperation.Responses.Add("404", new OpenApiResponse { Description = "Validation not found" });
+                generatedOperation.Responses.Add("500", new OpenApiResponse { Description = "Error during feed validation" });
+
+                var parameter = generatedOperation.Parameters[0];
+
+                parameter.Description = "Elaboration id returned from /start-validation";
+                parameter.Required = true;
+
+                return generatedOperation;
+            });
+
+            // apiStatus con le informazioni della versione del feed ecc e tutte le elaborazioni
+            app.MapGet("/api-status",
+                ([FromServices] IGtfsFeedValidatorService gtfsFeedValidatorService) =>
+                {
+                    return Results.Ok(gtfsFeedValidatorService.GetApiStatus());
+                });
         }
     }
 }
