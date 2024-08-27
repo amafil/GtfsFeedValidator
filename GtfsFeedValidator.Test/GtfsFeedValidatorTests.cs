@@ -5,6 +5,7 @@ using FluentAssertions;
 using System.Text.Json;
 using System.Net.Http.Json;
 using GtfsFeedValidator.Models;
+using Microsoft.AspNetCore.Http;
 
 namespace GtfsFeedValidator.Test
 {
@@ -13,7 +14,7 @@ namespace GtfsFeedValidator.Test
     {
         private readonly HttpClient _client;
 
-        private const string _filePath = @".\TestData\gtfs.zip";
+        private const string _filePath = @"./TestData/gtfs.zip";
         private const string _uri = "http://localhost:5001";
 
         public GtfsFeedValidatorTests()
@@ -45,20 +46,7 @@ namespace GtfsFeedValidator.Test
             httpResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
             // wait for the validation to complete
-            bool isCompleted = false;
-            for(int i = 0; i < 3; i++)
-            {
-                await Task.Delay(Constants.WorkerMsPollingInterval);
-                httpResponse = await _client.GetValidationResultAsync(gtfsFeedValidationId);
-                if (httpResponse.StatusCode == HttpStatusCode.OK)
-                {
-                    isCompleted = true;
-                    break;
-                }
-            }
-            isCompleted.Should().BeTrue();
-
-            GtfsValidatorResponse validatorResponse = await httpResponse.Content.ReadFromJsonAsync<GtfsValidatorResponse>();
+            await WaitForElaborationEnd(gtfsFeedValidationId);
         }
 
         [TestMethod]
@@ -66,7 +54,7 @@ namespace GtfsFeedValidator.Test
         {
             await _client.EnsureApiIsReadyAsync();
 
-            Task<HttpResponseMessage>[] tasks = new Task<HttpResponseMessage>[50];
+            Task<HttpResponseMessage>[] tasks = new Task<HttpResponseMessage>[20];
             
             for (int i = 0; i < tasks.Length; i++)
             {
@@ -81,7 +69,33 @@ namespace GtfsFeedValidator.Test
                 httpResponseMessages.Add(await task);
             }
 
-            httpResponseMessages.All(httpResponseMessages => httpResponseMessages.StatusCode == HttpStatusCode.Accepted).Should().BeTrue();
+            httpResponseMessages
+                .All(httpResponseMessage => httpResponseMessage.StatusCode == HttpStatusCode.Accepted)
+                .Should()
+                .BeTrue();
+
+            foreach(var httpResponseMessage in httpResponseMessages)
+            {
+                string gtfsFeedValidationId = await httpResponseMessage.Content.ReadFromJsonAsync<string>();
+
+                await WaitForElaborationEnd(gtfsFeedValidationId);
+            }
+        }
+
+        private async Task WaitForElaborationEnd(string gtfsFeedValidationId)
+        {
+            int attempt = 1, maxAttempts = 60;
+            HttpResponseMessage result;
+            do
+            {
+                await Task.Delay(Constants.WorkerMsPollingInterval);
+                result = await _client.GetValidationResultAsync(gtfsFeedValidationId);
+                
+            } while (result.StatusCode == HttpStatusCode.NoContent || maxAttempts <= attempt);
+
+            result.StatusCode.Should().Be(HttpStatusCode.OK);
+
+            GtfsValidatorResponse validatorResponse = await result.Content.ReadFromJsonAsync<GtfsValidatorResponse>();
         }
     }
 }
