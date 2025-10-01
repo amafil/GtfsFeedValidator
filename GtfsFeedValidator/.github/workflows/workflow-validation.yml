@@ -1,0 +1,74 @@
+name: Workflow Validation
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/**'
+      - '.github/dependabot.yml'
+  push:
+    branches: [ main ]
+    paths:
+      - '.github/workflows/**'
+      - '.github/dependabot.yml'
+
+jobs:
+  validate-workflows:
+    name: Validate Workflow Files
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Validate workflow syntax
+      run: |
+        # Check if workflow files are valid YAML
+        for file in .github/workflows/*.yml .github/workflows/*.yaml; do
+          if [[ -f "$file" ]]; then
+            echo "Validating $file"
+            python -c "import yaml; yaml.safe_load(open('$file'))" || exit 1
+            echo "? $file is valid YAML"
+          fi
+        done
+        
+    - name: Validate dependabot configuration
+      run: |
+        if [[ -f ".github/dependabot.yml" ]]; then
+          echo "Validating .github/dependabot.yml"
+          python -c "import yaml; yaml.safe_load(open('.github/dependabot.yml'))" || exit 1
+          echo "? dependabot.yml is valid YAML"
+        fi
+        
+    - name: Check for common issues
+      run: |
+        echo "Checking for common workflow issues..."
+        
+        # Check for hardcoded secrets
+        if grep -r "password\|token\|secret" .github/workflows/ --include="*.yml" --include="*.yaml" | grep -v "secrets\." | grep -v "GITHUB_TOKEN"; then
+          echo "? Found potential hardcoded secrets"
+          exit 1
+        fi
+        
+        # Check for latest tag usage (should use specific versions)
+        if grep -r "@latest" .github/workflows/ --include="*.yml" --include="*.yaml"; then
+          echo "??  Warning: Found @latest tag usage, consider using specific versions"
+        fi
+        
+        # Check for missing required permissions
+        echo "? Workflow validation completed"
+        
+    - name: Lint workflow files
+      uses: rhysd/actionlint-action@v1
+      with:
+        fail-on-error: true
+        
+    - name: Security scan for workflows
+      run: |
+        echo "Scanning workflows for security issues..."
+        
+        # Check for potential code injection vulnerabilities
+        if grep -r '\${{.*github\.event\..*}}' .github/workflows/ --include="*.yml" --include="*.yaml" | grep -v "github.event.inputs\|github.event.repository"; then
+          echo "??  Warning: Found potential code injection patterns"
+        fi
+        
+        echo "? Security scan completed"

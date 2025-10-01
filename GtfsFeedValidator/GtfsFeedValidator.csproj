@@ -18,6 +18,15 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include=".github\dependabot.yml" />
+    <None Include=".github\WORKFLOWS.md" />
+    <None Include=".github\workflows\ci.yml" />
+    <None Include=".github\workflows\pr-validation.yml" />
+    <None Include=".github\workflows\release.yml" />
+    <None Include=".github\workflows\workflow-validation.yml" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="AutoMapper" Version="13.0.1" />
     <PackageReference Include="LiteDB" Version="5.0.21" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.7" />
