@@ -1,0 +1,74 @@
+version: 2
+updates:
+  # Enable version updates for .NET / NuGet
+  - package-ecosystem: "nuget"
+    directory: "/GtfsFeedValidator"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "@octocat"  # Replace with actual reviewers
+    assignees:
+      - "@octocat"  # Replace with actual assignees
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "nuget"
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    ignore:
+      # Ignore major version updates for now
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+        
+  # Enable version updates for Test project
+  - package-ecosystem: "nuget"
+    directory: "/GtfsFeedValidator.Test"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "@octocat"  # Replace with actual reviewers
+    commit-message:
+      prefix: "test"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "nuget"
+      - "tests"
+      
+  # Enable version updates for Docker
+  - package-ecosystem: "docker"
+    directory: "/GtfsFeedValidator"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+      time: "09:00"
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "docker"
+    labels:
+      - "dependencies"
+      - "docker"
+      
+  # Enable version updates for GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "wednesday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "ci"
+    labels:
+      - "dependencies"
+      - "github-actions"
+      - "ci/cd"

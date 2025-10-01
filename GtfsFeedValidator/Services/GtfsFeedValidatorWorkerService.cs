@@ -48,7 +48,7 @@ namespace GtfsFeedValidator.Services
                         };
 
                         process.Start();
-                        process.WaitForExit();
+                        await process.WaitForExitAsync();
                         process.Close();
 
                         string sessionId = Guid.NewGuid().ToString().Replace("-", "");

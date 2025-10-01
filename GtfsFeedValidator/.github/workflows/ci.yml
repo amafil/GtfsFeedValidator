@@ -1,0 +1,284 @@
+name: Continuous Integration
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.github/workflows/pr-validation.yml'
+      - '.github/workflows/release.yml'
+  schedule:
+    # Run daily at 2 AM UTC to catch dependency issues
+    - cron: '0 2 * * *'
+
+env:
+  DOTNET_VERSION: '8.0.x'
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  DOTNET_NOLOGO: true
+
+jobs:
+  build-and-test:
+    name: Build and Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+        
+    - name: Cache NuGet packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.nuget/packages
+        key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+        restore-keys: |
+          ${{ runner.os }}-nuget-
+          
+    - name: Restore dependencies
+      run: dotnet restore
+      working-directory: ./GtfsFeedValidator
+      
+    - name: Build solution
+      run: dotnet build --configuration Release --no-restore --verbosity normal
+      working-directory: ./GtfsFeedValidator
+      
+    - name: Run tests
+      run: |
+        dotnet test \
+          --configuration Release \
+          --no-build \
+          --verbosity normal \
+          --logger trx \
+          --collect:"XPlat Code Coverage" \
+          --results-directory ./TestResults \
+          ../GtfsFeedValidator.Test/GtfsFeedValidator.Test.csproj
+      working-directory: ./GtfsFeedValidator
+      
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results-${{ matrix.os }}-${{ github.run_number }}
+        path: ./GtfsFeedValidator/TestResults
+        retention-days: 30
+
+  security-analysis:
+    name: Security Analysis
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+      
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+        
+    - name: Restore dependencies
+      run: dotnet restore
+      working-directory: ./GtfsFeedValidator
+      
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v3
+      with:
+        languages: csharp
+        
+    - name: Build for CodeQL
+      run: dotnet build --configuration Release --no-restore
+      working-directory: ./GtfsFeedValidator
+      
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
+      
+    - name: Run security scan for vulnerable packages
+      run: |
+        dotnet list package --vulnerable --include-transitive > vulnerable-packages.txt 2>&1
+        if grep -q "has the following vulnerable packages" vulnerable-packages.txt; then
+          echo "::warning::Vulnerable packages found"
+          cat vulnerable-packages.txt
+        else
+          echo "No vulnerable packages found"
+        fi
+      working-directory: ./GtfsFeedValidator
+
+  docker-build:
+    name: Docker Build Validation
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: Download GTFS Validator JAR (for Docker build)
+      run: |
+        curl -L -o ./GtfsFeedValidator/gtfs-validator.5.0.1-cli.jar \
+          https://github.com/MobilityData/gtfs-validator/releases/download/v5.0.1/gtfs-validator-5.0.1-cli.jar
+          
+    - name: Build Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./GtfsFeedValidator
+        file: ./GtfsFeedValidator/Dockerfile
+        push: false
+        tags: gtfs-feed-validator:ci-${{ github.run_number }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        
+    - name: Test Docker image
+      run: |
+        # Build the image
+        docker build -t gtfs-validator-test ./GtfsFeedValidator
+        
+        # Run a basic health check
+        docker run --rm -d --name gtfs-validator-test-container -p 8080:8080 gtfs-validator-test
+        
+        # Wait for startup
+        sleep 10
+        
+        # Test the API status endpoint
+        curl -f http://localhost:8080/api-status || (docker logs gtfs-validator-test-container && exit 1)
+        
+        # Stop container
+        docker stop gtfs-validator-test-container
+
+  code-quality:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+        
+    - name: Restore dependencies
+      run: dotnet restore
+      working-directory: ./GtfsFeedValidator
+      
+    - name: Build solution
+      run: dotnet build --configuration Release --no-restore
+      working-directory: ./GtfsFeedValidator
+      
+    - name: Install dotnet format
+      run: dotnet tool install -g dotnet-format
+      
+    - name: Check code formatting
+      run: dotnet format --verify-no-changes --verbosity normal
+      working-directory: ./GtfsFeedValidator
+      
+    # Uncomment when SonarCloud is configured
+    # - name: SonarCloud Scan
+    #   uses: SonarSource/sonarcloud-github-action@master
+    #   env:
+    #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    #     SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+  performance-test:
+    name: Performance Test
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+        
+    - name: Download GTFS Validator JAR
+      run: |
+        curl -L -o ./GtfsFeedValidator/gtfs-validator.5.0.1-cli.jar \
+          https://github.com/MobilityData/gtfs-validator/releases/download/v5.0.1/gtfs-validator-5.0.1-cli.jar
+          
+    - name: Build and run performance tests
+      run: |
+        dotnet build --configuration Release
+        # Add performance test execution here
+        # For example: dotnet test --configuration Release --filter Category=Performance
+        echo "Performance tests would run here"
+      working-directory: ./GtfsFeedValidator
+
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Dependency Review
+      uses: actions/dependency-review-action@v4
+      with:
+        fail-on-severity: moderate
+        
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+        
+    - name: List outdated packages
+      run: |
+        dotnet list package --outdated > outdated-packages.txt 2>&1 || true
+        if [[ -s outdated-packages.txt ]]; then
+          echo "::notice::Outdated packages found"
+          cat outdated-packages.txt
+        fi
+      working-directory: ./GtfsFeedValidator
+
+  notify-status:
+    name: Notify Build Status
+    runs-on: ubuntu-latest
+    needs: [build-and-test, security-analysis, docker-build, code-quality]
+    if: always() && github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Check build status
+      run: |
+        if [[ "${{ needs.build-and-test.result }}" == "success" && \
+              "${{ needs.security-analysis.result }}" == "success" && \
+              "${{ needs.docker-build.result }}" == "success" && \
+              "${{ needs.code-quality.result }}" == "success" ]]; then
+          echo "? All CI checks passed for main branch"
+          echo "BUILD_STATUS=success" >> $GITHUB_ENV
+        else
+          echo "? CI checks failed for main branch"
+          echo "BUILD_STATUS=failure" >> $GITHUB_ENV
+        fi
+        
+    - name: Update build status
+      run: |
+        echo "Build status: ${{ env.BUILD_STATUS }}"
+        # Add webhook/notification logic here for build status
+        # Examples:
+        # - Slack notification
+        # - Teams notification
+        # - Update deployment status
+        # - Trigger downstream workflows
