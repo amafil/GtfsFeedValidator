@@ -90,8 +90,8 @@ namespace GtfsFeedValidator.Test
             {
                 await Task.Delay(Constants.WorkerMsPollingInterval);
                 result = await _client.GetValidationResultAsync(gtfsFeedValidationId);
-                
-            } while (result.StatusCode == HttpStatusCode.NoContent || maxAttempts <= attempt);
+                attempt++;
+            } while (result.StatusCode == HttpStatusCode.NoContent && attempt <= maxAttempts);
 
             result.StatusCode.Should().Be(HttpStatusCode.OK);
 
