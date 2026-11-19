@@ -22,7 +22,7 @@
     <None Include=".github\WORKFLOWS.md" />
     <None Include=".github\workflows\ci.yml" />
     <None Include=".github\workflows\pr-validation.yml" />
-    <None Include=".github\workflows\release.yml" />
+    <None Include="..\.github\workflows\release.yml" />
     <None Include=".github\workflows\workflow-validation.yml" />
   </ItemGroup>
 

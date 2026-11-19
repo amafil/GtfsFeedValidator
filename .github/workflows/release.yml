@@ -14,6 +14,7 @@ on:
 
 env:
   DOTNET_VERSION: '8.0.x'
+  GTFS_VALIDATOR_VERSION: '8.0.1'
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
   DOTNET_NOLOGO: true
   REGISTRY: ghcr.io
@@ -26,6 +27,8 @@ jobs:
     
     outputs:
       version: ${{ steps.version.outputs.version }}
+      package_version: ${{ steps.version.outputs.package_version }}
+      assembly_version: ${{ steps.version.outputs.assembly_version }}
       
     steps:
     - name: Checkout code
@@ -37,12 +40,17 @@ jobs:
       id: version
       run: |
         if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-          VERSION="${{ github.event.inputs.version }}"
+          RELEASE_VERSION="${{ github.event.inputs.version }}"
         else
-          VERSION=${GITHUB_REF#refs/tags/}
+          RELEASE_VERSION="${GITHUB_REF_NAME}"
         fi
-        echo "version=${VERSION}" >> $GITHUB_OUTPUT
-        echo "Version: ${VERSION}"
+        PACKAGE_VERSION="${RELEASE_VERSION#v}"
+        PACKAGE_VERSION="${PACKAGE_VERSION#release-}"
+        ASSEMBLY_VERSION="${PACKAGE_VERSION%%-*}"
+        echo "version=${RELEASE_VERSION}" >> "$GITHUB_OUTPUT"
+        echo "package_version=${PACKAGE_VERSION}" >> "$GITHUB_OUTPUT"
+        echo "assembly_version=${ASSEMBLY_VERSION}" >> "$GITHUB_OUTPUT"
+        echo "Release version: ${RELEASE_VERSION}"
         
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
@@ -64,6 +72,11 @@ jobs:
     - name: Build solution
       run: dotnet build --configuration Release --no-restore --verbosity normal
       working-directory: ./GtfsFeedValidator
+
+    - name: Download GTFS Validator JAR for tests
+      run: |
+        curl -fL -o ./GtfsFeedValidator.Test/bin/Release/net8.0/gtfs-validator-${{ env.GTFS_VALIDATOR_VERSION }}-cli.jar \
+          https://github.com/MobilityData/gtfs-validator/releases/download/v${{ env.GTFS_VALIDATOR_VERSION }}/gtfs-validator-${{ env.GTFS_VALIDATOR_VERSION }}-cli.jar
       
     - name: Run tests
       run: |
@@ -101,12 +114,6 @@ jobs:
       with:
         dotnet-version: ${{ env.DOTNET_VERSION }}
         
-    - name: Download GTFS Validator JAR
-      run: |
-        mkdir -p ./GtfsFeedValidator
-        curl -L -o ./GtfsFeedValidator/gtfs-validator.5.0.1-cli.jar \
-          https://github.com/MobilityData/gtfs-validator/releases/download/v5.0.1/gtfs-validator-5.0.1-cli.jar
-          
     - name: Publish self-contained application
       run: |
         dotnet publish ./GtfsFeedValidator/GtfsFeedValidator.csproj \
@@ -116,9 +123,14 @@ jobs:
           --output ./publish/${{ matrix.runtime }} \
           -p:PublishSingleFile=true \
           -p:IncludeNativeLibrariesForSelfExtract=true \
-          -p:Version="${{ needs.validate-and-test.outputs.version }}" \
-          -p:AssemblyVersion="${{ needs.validate-and-test.outputs.version }}" \
-          -p:FileVersion="${{ needs.validate-and-test.outputs.version }}"
+          -p:Version="${{ needs.validate-and-test.outputs.package_version }}" \
+          -p:AssemblyVersion="${{ needs.validate-and-test.outputs.assembly_version }}" \
+          -p:FileVersion="${{ needs.validate-and-test.outputs.assembly_version }}"
+
+    - name: Include GTFS Validator JAR
+      run: |
+        curl -fL -o ./publish/${{ matrix.runtime }}/gtfs-validator-${{ env.GTFS_VALIDATOR_VERSION }}-cli.jar \
+          https://github.com/MobilityData/gtfs-validator/releases/download/v${{ env.GTFS_VALIDATOR_VERSION }}/gtfs-validator-${{ env.GTFS_VALIDATOR_VERSION }}-cli.jar
           
     - name: Create release archive
       run: |
@@ -149,11 +161,6 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: Download GTFS Validator JAR
-      run: |
-        curl -L -o ./GtfsFeedValidator/gtfs-validator.5.0.1-cli.jar \
-          https://github.com/MobilityData/gtfs-validator/releases/download/v5.0.1/gtfs-validator-5.0.1-cli.jar
-          
     - name: Log in to Container Registry
       uses: docker/login-action@v3
       with:
@@ -168,7 +175,7 @@ jobs:
         images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
         tags: |
           type=ref,event=tag
-          type=raw,value=latest,enable={{is_default_branch}}
+          type=raw,value=latest,enable=${{ !contains(needs.validate-and-test.outputs.version, 'alpha') && !contains(needs.validate-and-test.outputs.version, 'beta') && !contains(needs.validate-and-test.outputs.version, 'rc') }}
           type=raw,value=${{ needs.validate-and-test.outputs.version }}
           
     - name: Set up Docker Buildx
@@ -217,33 +224,41 @@ jobs:
           CHANGELOG="Initial release"
         fi
         
+        if [[ -n "$PREVIOUS_TAG" ]]; then
+          FULL_CHANGELOG_URL="https://github.com/${{ github.repository }}/compare/${PREVIOUS_TAG}...${{ needs.validate-and-test.outputs.version }}"
+        else
+          FULL_CHANGELOG_URL="https://github.com/${{ github.repository }}/commits/${{ needs.validate-and-test.outputs.version }}"
+        fi
+
         # Write changelog to file and output
-        cat << 'EOF' > CHANGELOG.md
+        cat <<EOF > CHANGELOG.md
         ## What's Changed
         
         $CHANGELOG
         
         ## Docker Images
         
-        - `ghcr.io/${{ github.repository }}:${{ needs.validate-and-test.outputs.version }}`
-        - `ghcr.io/${{ github.repository }}:latest`
+        - ghcr.io/${{ github.repository }}:${{ needs.validate-and-test.outputs.version }}
+        - ghcr.io/${{ github.repository }}:latest
         
         ## Installation
         
         ### Docker
-        ```bash
-        docker pull ghcr.io/${{ github.repository }}:${{ needs.validate-and-test.outputs.version }}
-        ```
+        Pull ghcr.io/${{ github.repository }}:${{ needs.validate-and-test.outputs.version }}
         
         ### Binary Downloads
-        Download the appropriate binary for your platform from the Assets section below.
+        Download the archive matching your operating system and architecture from the Assets section below, then extract it.
         
         ## Prerequisites
         
-        - Java Runtime Environment (JRE) 8 or later
-        - GTFS Validator JAR (included in releases)
+        - Java Runtime Environment (JRE) 17 or later
+        - The matching GTFS Validator JAR is included in each binary archive
+        - .NET runtime is bundled in the self-contained application
+
+        ### Binary archives
+        Run GtfsFeedValidator.exe on Windows or ./GtfsFeedValidator on Linux/macOS from the extracted directory. The archive includes the GTFS Validator JAR. The service writes its database and temporary files relative to the working directory by default.
         
-        **Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREVIOUS_TAG}...${{ needs.validate-and-test.outputs.version }}
+        Full Changelog: ${FULL_CHANGELOG_URL}
         EOF
         
         echo "changelog_file=CHANGELOG.md" >> $GITHUB_OUTPUT
