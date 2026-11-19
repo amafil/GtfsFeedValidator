@@ -32,32 +32,82 @@ namespace GtfsFeedValidator.Services
                         string directoryPath = Path.GetDirectoryName(feed.FilePath)
                             ?? throw new InvalidOperationException($"Feed file path '{feed.FilePath}' has no parent directory.");
                         string outputPath = Path.Combine(directoryPath, "validationResult");
+                        string jsonReportPath = Path.Combine(outputPath, "report.json");
+                        string htmlReportPath = Path.Combine(outputPath, "report.html");
 
-                        //java -jar .\gtfs-validator-8.0.1-cli.jar -i "gtfs_file.zip" -o "validazione"
-                        logger.LogInformation($"-jar \"{gtfsValidatorJarFullPath}\" -i \"{feed.FilePath}\" -o \"{outputPath}\"");
+                        if (!File.Exists(feed.FilePath))
+                        {
+                            throw new FileNotFoundException("The uploaded GTFS feed no longer exists.", feed.FilePath);
+                        }
+
+                        if (!File.Exists(gtfsValidatorJarFullPath))
+                        {
+                            throw new FileNotFoundException("The configured GTFS validator JAR was not found.", gtfsValidatorJarFullPath);
+                        }
+
+                        logger.LogInformation(
+                            "Starting GTFS validator for feed {feedId}, input {inputPath}, output {outputPath}",
+                            feed.Id,
+                            feed.FilePath,
+                            outputPath);
+
+                        var startInfo = new ProcessStartInfo
+                        {
+                            FileName = "java",
+                            RedirectStandardOutput = true,
+                            RedirectStandardError = true,
+                            UseShellExecute = false,
+                            CreateNoWindow = true
+                        };
+                        startInfo.ArgumentList.Add("-jar");
+                        startInfo.ArgumentList.Add(gtfsValidatorJarFullPath);
+                        startInfo.ArgumentList.Add("-i");
+                        startInfo.ArgumentList.Add(feed.FilePath);
+                        startInfo.ArgumentList.Add("-o");
+                        startInfo.ArgumentList.Add(outputPath);
+
                         using var process = new Process
                         {
-                            StartInfo = new ProcessStartInfo
-                            {
-                                FileName = "java",
-                                Arguments = $"-jar \"{gtfsValidatorJarFullPath}\" -i \"{feed.FilePath}\" -o \"{outputPath}\"",
-                                RedirectStandardOutput = false,
-                                RedirectStandardError = false,
-                                UseShellExecute = false,
-                                CreateNoWindow = true
-                            }
+                            StartInfo = startInfo
                         };
 
-                        process.Start();
+                        if (!process.Start())
+                        {
+                            throw new InvalidOperationException("The GTFS validator process could not be started.");
+                        }
+
+                        Task<string> standardOutputTask = process.StandardOutput.ReadToEndAsync();
+                        Task<string> standardErrorTask = process.StandardError.ReadToEndAsync();
                         await process.WaitForExitAsync();
-                        process.Close();
+                        string standardOutput = await standardOutputTask;
+                        string standardError = await standardErrorTask;
+
+                        if (process.ExitCode != 0)
+                        {
+                            throw new InvalidOperationException(
+                                $"GTFS validator exited with code {process.ExitCode}. " +
+                                $"Standard error: {TruncateProcessOutput(standardError)}. " +
+                                $"Standard output: {TruncateProcessOutput(standardOutput)}");
+                        }
+
+                        string[] missingReports = new[] { jsonReportPath, htmlReportPath }
+                            .Where(path => !File.Exists(path))
+                            .ToArray();
+                        if (missingReports.Length > 0)
+                        {
+                            throw new InvalidOperationException(
+                                $"GTFS validator exited successfully but did not create the expected report(s): " +
+                                $"{string.Join(", ", missingReports)}. " +
+                                $"Standard error: {TruncateProcessOutput(standardError)}. " +
+                                $"Standard output: {TruncateProcessOutput(standardOutput)}");
+                        }
 
                         string sessionId = Guid.NewGuid().ToString().Replace("-", "");
 
                         var validationResultCollection = db.GetCollection<GtfsFeedValidationResult>(Constants.GtfsFeedValidationResultCollectionName);
 
-                        string reportJson = await File.ReadAllTextAsync(Path.Combine(outputPath, "report.json"), stoppingToken);
-                        string reportHtml = await File.ReadAllTextAsync(Path.Combine(outputPath, "report.html"), stoppingToken);
+                        string reportJson = await File.ReadAllTextAsync(jsonReportPath, stoppingToken);
+                        string reportHtml = await File.ReadAllTextAsync(htmlReportPath, stoppingToken);
 
                         validationResultCollection.Insert(new GtfsFeedValidationResult
                         {
@@ -76,7 +126,7 @@ namespace GtfsFeedValidator.Services
                     catch (Exception ex)
                     {
                         feed.Status = Constants.GtfsFeedValidationStatusError;
-                        logger.LogError(ex, $"Error executing validation for feedId: {feed.Id}");
+                        logger.LogError(ex, "Error executing validation for feedId: {feedId}", feed.Id);
                     }
                     finally
                     {
@@ -113,6 +163,14 @@ namespace GtfsFeedValidator.Services
                     }
                 }
             }
+        }
+
+        private static string TruncateProcessOutput(string output)
+        {
+            const int maxLength = 4000;
+            return output.Length <= maxLength
+                ? output
+                : output[..maxLength] + "... (truncated)";
         }
     }
 
