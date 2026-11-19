@@ -26,5 +26,5 @@ jobs:
       run: dotnet build "./GtfsFeedValidator/GtfsFeedValidator.sln" -c Release --no-restore
     - name: Test
       run: |
-        wget https://github.com/MobilityData/gtfs-validator/releases/download/v5.0.1/gtfs-validator-5.0.1-cli.jar -O ./GtfsFeedValidator.Test/bin/Release/net8.0/gtfs-validator-5.0.1-cli.jar
+        wget https://github.com/MobilityData/gtfs-validator/releases/download/v8.0.1/gtfs-validator-8.0.1-cli.jar -O ./GtfsFeedValidator.Test/bin/Release/net8.0/gtfs-validator-8.0.1-cli.jar
         dotnet test "./GtfsFeedValidator.Test/bin/Release/net8.0/GtfsFeedValidator.Test.dll" --no-build --verbosity normal
