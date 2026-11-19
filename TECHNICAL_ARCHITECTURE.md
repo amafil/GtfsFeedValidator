@@ -111,7 +111,7 @@ The GTFS Feed Validator is a web-based service designed to validate GTFS (Genera
 
 #### GTFS Validator JAR
 - **Technology**: Java-based validation engine from Google/MobilityData
-- **Version**: 5.0.1 (configurable)
+- **Version**: 8.0.1 (configurable)
 - **Execution**: Command-line interface via Process.Start()
 - **Input**: GTFS ZIP files
 - **Output**: JSON report and HTML report
@@ -169,8 +169,7 @@ Client Request ? API Endpoint ? Service Layer ? Database ? Response
 - **File System**: Temporary file storage
 - **JSON Serialization**: System.Text.Json
 
-### Object Mapping and Configuration
-- **AutoMapper 13.0.1**: Object-object mapping
+### Configuration
 - **Options Pattern**: Configuration management
 - **User Secrets**: Development configuration
 
@@ -181,7 +180,7 @@ Client Request ? API Endpoint ? Service Layer ? Database ? Response
 - **AspNetCore.Mvc.Testing**: Integration testing
 
 ### External Tools
-- **Java Runtime Environment**: Required for GTFS validator
+- **Java Runtime Environment**: Version 17 or higher, required for GTFS validator
 - **Google GTFS Validator JAR**: Core validation engine
 
 ## Design Patterns and Principles

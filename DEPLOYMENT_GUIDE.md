@@ -7,8 +7,8 @@ This guide covers different deployment scenarios for the GTFS Feed Validator ser
 ### System Requirements
 
 - **.NET 8 Runtime** or SDK
-- **Java Runtime Environment (JRE)** - Required for GTFS validator JAR execution
-- **GTFS Validator JAR** - `gtfs-validator.5.0.1-cli.jar`
+- **Java Runtime Environment (JRE) 17 or higher** - Required for GTFS validator JAR execution
+- **GTFS Validator JAR** - `gtfs-validator-8.0.1-cli.jar`
 
 ### Dependencies
 
@@ -40,7 +40,7 @@ Create `appsettings.Development.json`:
   "GtfsFeedValidatorConfiguration": {
     "ConnectionString": "Data/gtfs-validator.db",
     "WorkingDirectory": "WorkDir",
-    "GtfsValidatorJarPath": "gtfs-validator.5.0.1-cli.jar"
+    "GtfsValidatorJarPath": "gtfs-validator-8.0.1-cli.jar"
   }
 }
 ```
@@ -49,8 +49,8 @@ Create `appsettings.Development.json`:
 
 ```bash
 # Download the official GTFS validator JAR
-wget -O gtfs-validator.5.0.1-cli.jar \
-  https://github.com/MobilityData/gtfs-validator/releases/download/v5.0.1/gtfs-validator-5.0.1-cli.jar
+wget -O gtfs-validator-8.0.1-cli.jar \
+  https://github.com/MobilityData/gtfs-validator/releases/download/v8.0.1/gtfs-validator-8.0.1-cli.jar
 ```
 
 ### 4. Run the Application
@@ -72,7 +72,7 @@ The application will be available at:
 
 ```bash
 # Ensure gtfs-validator JAR is in the project root
-cp gtfs-validator.5.0.1-cli.jar ./
+cp gtfs-validator-8.0.1-cli.jar ./
 
 # Build the image
 docker build -t gtfs-feed-validator .
@@ -93,7 +93,7 @@ docker run -d \
   -v $(pwd)/workdir:/app/WorkDir \
   -e GtfsFeedValidatorConfiguration__ConnectionString="Data/gtfs-validator.db" \
   -e GtfsFeedValidatorConfiguration__WorkingDirectory="WorkDir" \
-  -e GtfsFeedValidatorConfiguration__GtfsValidatorJarPath="gtfs-validator.5.0.1-cli.jar" \
+  -e GtfsFeedValidatorConfiguration__GtfsValidatorJarPath="gtfs-validator-8.0.1-cli.jar" \
   gtfs-feed-validator
 ```
 
@@ -115,7 +115,7 @@ services:
     environment:
       - GtfsFeedValidatorConfiguration__ConnectionString=Data/gtfs-validator.db
       - GtfsFeedValidatorConfiguration__WorkingDirectory=WorkDir
-      - GtfsFeedValidatorConfiguration__GtfsValidatorJarPath=gtfs-validator.5.0.1-cli.jar
+      - GtfsFeedValidatorConfiguration__GtfsValidatorJarPath=gtfs-validator-8.0.1-cli.jar
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/api-status"]
@@ -142,7 +142,7 @@ sudo dpkg -i packages-microsoft-prod.deb
 sudo apt-get update
 sudo apt-get install -y aspnetcore-runtime-8.0
 
-# Install Java
+# Install Java (version 17 or higher)
 sudo apt-get install -y default-jre
 
 # Install Nginx (optional, for reverse proxy)
@@ -164,7 +164,7 @@ sudo chown gtfsvalidator:gtfsvalidator /opt/gtfs-validator
 dotnet publish -c Release -o /opt/gtfs-validator
 
 # Copy GTFS validator JAR
-sudo cp gtfs-validator.5.0.1-cli.jar /opt/gtfs-validator/
+sudo cp gtfs-validator-8.0.1-cli.jar /opt/gtfs-validator/
 
 # Set permissions
 sudo chown -R gtfsvalidator:gtfsvalidator /opt/gtfs-validator
@@ -198,7 +198,7 @@ Environment=DOTNET_PRINT_TELEMETRY_MESSAGE=false
 # Environment variables for configuration
 Environment=GtfsFeedValidatorConfiguration__ConnectionString=/var/lib/gtfs-validator/gtfs-validator.db
 Environment=GtfsFeedValidatorConfiguration__WorkingDirectory=/var/lib/gtfs-validator/workdir
-Environment=GtfsFeedValidatorConfiguration__GtfsValidatorJarPath=/opt/gtfs-validator/gtfs-validator.5.0.1-cli.jar
+Environment=GtfsFeedValidatorConfiguration__GtfsValidatorJarPath=/opt/gtfs-validator/gtfs-validator-8.0.1-cli.jar
 
 [Install]
 WantedBy=multi-user.target
@@ -263,7 +263,7 @@ sudo systemctl reload nginx
 #### 1. Install Prerequisites
 
 - Install .NET 8 Hosting Bundle
-- Install Java Runtime Environment
+- Install Java Runtime Environment 17 or higher
 - Enable IIS with ASP.NET Core Module
 
 #### 2. Publish Application
@@ -301,7 +301,7 @@ Create `appsettings.Production.json`:
   "GtfsFeedValidatorConfiguration": {
     "ConnectionString": "C:\\ProgramData\\GtfsValidator\\gtfs-validator.db",
     "WorkingDirectory": "C:\\ProgramData\\GtfsValidator\\WorkDir",
-    "GtfsValidatorJarPath": "C:\\inetpub\\gtfs-validator\\gtfs-validator.5.0.1-cli.jar"
+    "GtfsValidatorJarPath": "C:\\inetpub\\gtfs-validator\\gtfs-validator-8.0.1-cli.jar"
   }
 }
 ```
@@ -331,7 +331,7 @@ data:
       "GtfsFeedValidatorConfiguration": {
         "ConnectionString": "/data/gtfs-validator.db",
         "WorkingDirectory": "/workdir",
-        "GtfsValidatorJarPath": "/app/gtfs-validator.5.0.1-cli.jar"
+        "GtfsValidatorJarPath": "/app/gtfs-validator-8.0.1-cli.jar"
       }
     }
 ```
@@ -453,7 +453,7 @@ export GtfsFeedValidatorConfiguration__ConnectionString="/data/gtfs-validator.db
 export GtfsFeedValidatorConfiguration__WorkingDirectory="/workdir"
 
 # GTFS Validator JAR path
-export GtfsFeedValidatorConfiguration__GtfsValidatorJarPath="/app/gtfs-validator.5.0.1-cli.jar"
+export GtfsFeedValidatorConfiguration__GtfsValidatorJarPath="/app/gtfs-validator-8.0.1-cli.jar"
 
 # ASP.NET Core environment
 export ASPNETCORE_ENVIRONMENT="Production"
@@ -544,7 +544,7 @@ For production monitoring, consider integrating:
 ```
 Error: Java is not installed or not in PATH
 ```
-**Solution**: Install JRE and ensure it's in the system PATH.
+**Solution**: Install JRE 17 or higher and ensure it's in the system PATH.
 
 #### Permission Denied
 ```

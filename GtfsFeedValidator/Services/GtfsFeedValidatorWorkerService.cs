@@ -29,10 +29,11 @@ namespace GtfsFeedValidator.Services
 
                     try
                     {
-                        string directoryPath = Path.GetDirectoryName(feed.FilePath);
+                        string directoryPath = Path.GetDirectoryName(feed.FilePath)
+                            ?? throw new InvalidOperationException($"Feed file path '{feed.FilePath}' has no parent directory.");
                         string outputPath = Path.Combine(directoryPath, "validationResult");
 
-                        //java -jar .\gtfs-validator-5.0.1-cli.jar -i "gtfs_file.zip" -o "validazione"
+                        //java -jar .\gtfs-validator-8.0.1-cli.jar -i "gtfs_file.zip" -o "validazione"
                         logger.LogInformation($"-jar \"{gtfsValidatorJarFullPath}\" -i \"{feed.FilePath}\" -o \"{outputPath}\"");
                         using var process = new Process
                         {
@@ -86,14 +87,20 @@ namespace GtfsFeedValidator.Services
                     // pulizia cartelle ed elaborazioni più vecchie di 24 ore
                     try
                     {
-                        var feeds = gtfsFeedValidationCollection.FindAll();
+                        // Materialize the results before deleting from the same collection.
+                        var feeds = gtfsFeedValidationCollection.FindAll().ToList();
+                        DateTime cleanupThreshold = DateTime.Now.AddHours(-24);
+
                         foreach (var obsoleteFeed in feeds)
                         {
-                            if (obsoleteFeed.EndElaboration.HasValue && obsoleteFeed.EndElaboration.Value.AddHours(24) < DateTime.Now)
+                            if (obsoleteFeed.EndElaboration.HasValue && obsoleteFeed.EndElaboration.Value < cleanupThreshold)
                             {
-                                string directoryPath = Path.GetDirectoryName(feed.FilePath);
+                                string? directoryPath = Path.GetDirectoryName(obsoleteFeed.FilePath);
 
-                                Directory.Delete(directoryPath, recursive: true);
+                                if (!string.IsNullOrWhiteSpace(directoryPath) && Directory.Exists(directoryPath))
+                                {
+                                    Directory.Delete(directoryPath, recursive: true);
+                                }
 
                                 gtfsFeedValidationCollection.Delete(obsoleteFeed.Id);
                             }

@@ -1,4 +1,3 @@
-﻿using GtfsFeedValidator.Models.ValidatorOutput;
 
 namespace GtfsFeedValidator.Models.Responses
 {

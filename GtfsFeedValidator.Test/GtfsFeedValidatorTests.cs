@@ -38,7 +38,8 @@ namespace GtfsFeedValidator.Test
             string response = await httpResponse.Content.ReadAsStringAsync();
             response.Should().NotBeNullOrWhiteSpace();
             
-            string gtfsFeedValidationId = JsonSerializer.Deserialize<string>(response);
+            string gtfsFeedValidationId = JsonSerializer.Deserialize<string>(response)
+                ?? throw new InvalidOperationException("The validation request returned a null session ID.");
             gtfsFeedValidationId.Should().NotBeNullOrWhiteSpace();
 
             // expect that validation is not completed
@@ -76,7 +77,8 @@ namespace GtfsFeedValidator.Test
 
             foreach(var httpResponseMessage in httpResponseMessages)
             {
-                string gtfsFeedValidationId = await httpResponseMessage.Content.ReadFromJsonAsync<string>();
+                string gtfsFeedValidationId = await httpResponseMessage.Content.ReadFromJsonAsync<string>()
+                    ?? throw new InvalidOperationException("The validation request returned a null session ID.");
 
                 await WaitForElaborationEnd(gtfsFeedValidationId);
             }
@@ -95,7 +97,8 @@ namespace GtfsFeedValidator.Test
 
             result.StatusCode.Should().Be(HttpStatusCode.OK);
 
-            GtfsValidatorResponse validatorResponse = await result.Content.ReadFromJsonAsync<GtfsValidatorResponse>();
+            GtfsValidatorResponse validatorResponse = await result.Content.ReadFromJsonAsync<GtfsValidatorResponse>()
+                ?? throw new InvalidOperationException("The completed validation returned an empty report.");
         }
     }
 }

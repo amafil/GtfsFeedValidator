@@ -1,11 +1,10 @@
-using GtfsFeedValidator.Automapper;
 using GtfsFeedValidator.Configuration;
 using GtfsFeedValidator.Endpoints;
 using GtfsFeedValidator.Middleware;
-using GtfsFeedValidator.Models;
 using GtfsFeedValidator.Services;
 using Microsoft.OpenApi.Models;
 using Swashbuckle.AspNetCore.SwaggerGen;
+using System.Text.Json;
 
 namespace GtfsFeedValidator;
 
@@ -24,17 +23,14 @@ public class Program
             options.AddDocumentFilterInstance(new AdditionalSchemasDocumentFilter());
         });
         builder.Services.AddOptions<GtfsValidatorSettings>()
-            .BindConfiguration(GtfsValidatorSettings.Path);
+            .BindConfiguration(GtfsValidatorSettings.Path)
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
 
         builder.Services.AddScoped<IGtfsFeedValidatorService, GtfsFeedValidatorService>();
         builder.Services.AddSingleton<IGtfsFeedValidatorWorkerService, GtfsFeedValidatorWorkerService>();
 
         builder.Services.AddHostedService<GtfsValidatorWorker>();
-
-        builder.Services.AddAutoMapper(config =>
-        {
-            config.AddProfile<AutomapperProfile>();
-        }, typeof(Program));
 
         var app = builder.Build();
 
@@ -60,6 +56,6 @@ internal class AdditionalSchemasDocumentFilter : IDocumentFilter
 {
     public void Apply(OpenApiDocument swaggerDoc, DocumentFilterContext context)
     {
-        context.SchemaGenerator.GenerateSchema(typeof(GtfsValidatorResponse), context.SchemaRepository);
+        context.SchemaGenerator.GenerateSchema(typeof(JsonElement), context.SchemaRepository);
     }
 }

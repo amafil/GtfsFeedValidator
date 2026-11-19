@@ -40,15 +40,13 @@ The GTFS Feed Validator is a RESTful web service that provides asynchronous vali
 
 5. **Models & DTOs**
    - Request/Response models for API communication
-   - Output models for GTFS validator results
-   - AutoMapper profiles for model mapping
+   - Full GTFS validator reports passed through as JSON
 
 ### Technology Stack
 
 - **.NET 8**: Target framework
 - **ASP.NET Core**: Web API framework
 - **LiteDB**: Lightweight database for data persistence
-- **AutoMapper**: Object-object mapping
 - **Swashbuckle.AspNetCore**: OpenAPI/Swagger documentation
 - **Google GTFS Validator**: Java-based validation engine
 - **Docker**: Containerization support
@@ -118,8 +116,8 @@ docker run -p 8080:8080 gtfs-feed-validator
 
 ### Prerequisites
 
-- Java Runtime Environment (JRE) - Required for GTFS validator JAR
-- GTFS Validator JAR file (gtfs-validator.5.0.1-cli.jar)
+- Java Runtime Environment (JRE) 17 or higher - Required for GTFS validator JAR
+- GTFS Validator JAR file (gtfs-validator-8.0.1-cli.jar)
 
 ## Development
 
@@ -127,14 +125,12 @@ docker run -p 8080:8080 gtfs-feed-validator
 
 ```
 GtfsFeedValidator/
-??? Automapper/              # AutoMapper profiles
 ??? Configuration/           # Configuration classes
 ??? Database/               # Database entities
 ??? Endpoints/              # API endpoint definitions
 ??? Middleware/             # Custom middleware
 ??? Models/                 # Data models and DTOs
 ?   ??? Responses/         # API response models
-?   ??? ValidatorOutput/   # GTFS validator output models
 ??? Services/              # Business logic services
 ??? Constants.cs           # Application constants
 ??? Program.cs             # Application entry point
