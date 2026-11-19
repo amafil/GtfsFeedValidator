@@ -38,19 +38,68 @@ jobs:
       
     - name: Determine version
       id: version
+      env:
+        DISPATCH_VERSION: ${{ inputs.version }}
       run: |
         if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-          RELEASE_VERSION="${{ github.event.inputs.version }}"
+          RELEASE_VERSION="$DISPATCH_VERSION"
         else
           RELEASE_VERSION="${GITHUB_REF_NAME}"
         fi
-        PACKAGE_VERSION="${RELEASE_VERSION#v}"
-        PACKAGE_VERSION="${PACKAGE_VERSION#release-}"
-        ASSEMBLY_VERSION="${PACKAGE_VERSION%%-*}"
+
+        RAW_PACKAGE_VERSION="${RELEASE_VERSION#v}"
+        RAW_PACKAGE_VERSION="${RAW_PACKAGE_VERSION#release-}"
+        VERSION_WITHOUT_BUILD_METADATA="${RAW_PACKAGE_VERSION%%+*}"
+        EXISTING_BUILD_METADATA=""
+        if [[ "$RAW_PACKAGE_VERSION" == *+* ]]; then
+          EXISTING_BUILD_METADATA="${RAW_PACKAGE_VERSION#*+}"
+        fi
+
+        PRERELEASE_SUFFIX=""
+        if [[ "$VERSION_WITHOUT_BUILD_METADATA" == *-* ]]; then
+          PRERELEASE_SUFFIX="-${VERSION_WITHOUT_BUILD_METADATA#*-}"
+          NUMERIC_VERSION="${VERSION_WITHOUT_BUILD_METADATA%%-*}"
+        else
+          NUMERIC_VERSION="$VERSION_WITHOUT_BUILD_METADATA"
+        fi
+
+        IFS='.' read -r -a VERSION_PARTS <<< "$NUMERIC_VERSION"
+        if [[ ${#VERSION_PARTS[@]} -lt 3 ]]; then
+          echo "Release version must contain at least major.minor.patch: ${RELEASE_VERSION}" >&2
+          exit 1
+        fi
+        for VERSION_PART in "${VERSION_PARTS[@]}"; do
+          if [[ ! "$VERSION_PART" =~ ^[0-9]+$ ]]; then
+            echo "Release version contains a non-numeric version component: ${RELEASE_VERSION}" >&2
+            exit 1
+          fi
+        done
+
+        VERSION_CORE="${VERSION_PARTS[0]}.${VERSION_PARTS[1]}.${VERSION_PARTS[2]}"
+        ASSEMBLY_REVISION="${VERSION_PARTS[3]:-0}"
+        ASSEMBLY_VERSION="${VERSION_CORE}.${ASSEMBLY_REVISION}"
+
+        BUILD_METADATA="$EXISTING_BUILD_METADATA"
+        if [[ ${#VERSION_PARTS[@]} -gt 3 ]]; then
+          EXTRA_VERSION_PARTS=$(IFS='.'; echo "${VERSION_PARTS[*]:3}")
+          if [[ -n "$BUILD_METADATA" ]]; then
+            BUILD_METADATA="${EXTRA_VERSION_PARTS}.${BUILD_METADATA}"
+          else
+            BUILD_METADATA="$EXTRA_VERSION_PARTS"
+          fi
+        fi
+
+        PACKAGE_VERSION="${VERSION_CORE}${PRERELEASE_SUFFIX}"
+        if [[ -n "$BUILD_METADATA" ]]; then
+          PACKAGE_VERSION="${PACKAGE_VERSION}+${BUILD_METADATA}"
+        fi
+
         echo "version=${RELEASE_VERSION}" >> "$GITHUB_OUTPUT"
         echo "package_version=${PACKAGE_VERSION}" >> "$GITHUB_OUTPUT"
         echo "assembly_version=${ASSEMBLY_VERSION}" >> "$GITHUB_OUTPUT"
         echo "Release version: ${RELEASE_VERSION}"
+        echo "Build package version: ${PACKAGE_VERSION}"
+        echo "Assembly version: ${ASSEMBLY_VERSION}"
         
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
