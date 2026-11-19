@@ -1,9 +1,7 @@
-﻿using AutoMapper;
 using GtfsFeedValidator.Configuration;
 using GtfsFeedValidator.Database;
 using GtfsFeedValidator.Models;
 using GtfsFeedValidator.Models.Responses;
-using GtfsFeedValidator.Models.ValidatorOutput;
 using LiteDB;
 using Microsoft.Extensions.Options;
 using System.Text.Json;
@@ -12,14 +10,8 @@ namespace GtfsFeedValidator.Services
 {
     public class GtfsFeedValidatorService(
         IOptions<GtfsValidatorSettings> configuration,
-        IMapper mapper,
         ILogger<IGtfsFeedValidatorService> logger) : IGtfsFeedValidatorService
     {
-        static readonly JsonSerializerOptions options = new()
-        {
-            PropertyNameCaseInsensitive = true
-        };
-
         public async Task<string> StartValidationAsync(IFormFile file)
         {
             string workingDirectoryFullPath = PrepareWorkingDirectory(configuration.Value.WorkingDirectory);
@@ -67,14 +59,21 @@ namespace GtfsFeedValidator.Services
 
             if (!string.IsNullOrWhiteSpace(gtfsFeedValidation.JsonValidationResult))
             {
-                var validationResultOutput = System.Text.Json.JsonSerializer.Deserialize<GtfsValidatorOutput>(gtfsFeedValidation.JsonValidationResult, options);
-
-                if (validationResultOutput is null)
+                try
                 {
+                    using JsonDocument report = JsonDocument.Parse(gtfsFeedValidation.JsonValidationResult);
+                    if (report.RootElement.ValueKind != JsonValueKind.Object)
+                    {
+                        throw new JsonException("The validation report must be a JSON object.");
+                    }
+
+                    result.ValidationResult = report.RootElement.Clone();
+                }
+                catch (JsonException ex)
+                {
+                    logger.LogError(ex, "Stored validation report for feed {feedId} is not valid JSON", gtfsFeedValidationId);
                     return new GtfsFeedValidationResponse(ValidationStatusEnum.Error);
                 }
-
-                result.ValidationResult = mapper.Map<GtfsValidatorOutput, GtfsValidatorResponse>(validationResultOutput);
             }
 
             return result;

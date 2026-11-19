@@ -83,6 +83,7 @@ namespace GtfsFeedValidator.Endpoints
                     return Results.Ok(validation.ValidationResult);
                 })
             .WithName("Get GTFS Validation Result")
+            .Produces<System.Text.Json.JsonElement>(StatusCodes.Status200OK, "application/json")
             .WithOpenApi(generatedOperation =>
             {
                 generatedOperation.Description = "Get the validation result";

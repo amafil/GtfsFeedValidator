@@ -1,11 +1,10 @@
-using GtfsFeedValidator.Automapper;
 using GtfsFeedValidator.Configuration;
 using GtfsFeedValidator.Endpoints;
 using GtfsFeedValidator.Middleware;
-using GtfsFeedValidator.Models;
 using GtfsFeedValidator.Services;
 using Microsoft.OpenApi.Models;
 using Swashbuckle.AspNetCore.SwaggerGen;
+using System.Text.Json;
 
 namespace GtfsFeedValidator;
 
@@ -31,11 +30,6 @@ public class Program
 
         builder.Services.AddHostedService<GtfsValidatorWorker>();
 
-        builder.Services.AddAutoMapper(config =>
-        {
-            config.AddProfile<AutomapperProfile>();
-        }, typeof(Program));
-
         var app = builder.Build();
 
         // Configure the HTTP request pipeline.
@@ -60,6 +54,6 @@ internal class AdditionalSchemasDocumentFilter : IDocumentFilter
 {
     public void Apply(OpenApiDocument swaggerDoc, DocumentFilterContext context)
     {
-        context.SchemaGenerator.GenerateSchema(typeof(GtfsValidatorResponse), context.SchemaRepository);
+        context.SchemaGenerator.GenerateSchema(typeof(JsonElement), context.SchemaRepository);
     }
 }

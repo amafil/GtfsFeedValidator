@@ -6,7 +6,7 @@
 
         public ValidationStatusEnum Status { get; set; }
 
-        public GtfsValidatorResponse ValidationResult { get; set; }
+        public System.Text.Json.JsonElement? ValidationResult { get; set; }
     }
 }
 
