@@ -3,8 +3,13 @@
     public class GtfsValidatorSettings
     {
         public const string Path = "GtfsFeedValidatorConfiguration";
-        public string? ConnectionString { get; set; }
-        public string? WorkingDirectory { get; set; }
-        public string? GtfsValidatorJarPath { get; set; }
+        [System.ComponentModel.DataAnnotations.Required]
+        public string ConnectionString { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required]
+        public string WorkingDirectory { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required]
+        public string GtfsValidatorJarPath { get; set; } = string.Empty;
     }
 }

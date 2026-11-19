@@ -6,6 +6,6 @@
 
         public ValidationStatusEnum Status { get; set; }
 
-        public string ValidationResult { get; set; }
+        public string? ValidationResult { get; set; }
     }
 }

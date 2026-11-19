@@ -29,7 +29,8 @@ namespace GtfsFeedValidator.Services
 
                     try
                     {
-                        string directoryPath = Path.GetDirectoryName(feed.FilePath);
+                        string directoryPath = Path.GetDirectoryName(feed.FilePath)
+                            ?? throw new InvalidOperationException($"Feed file path '{feed.FilePath}' has no parent directory.");
                         string outputPath = Path.Combine(directoryPath, "validationResult");
 
                         //java -jar .\gtfs-validator-8.0.1-cli.jar -i "gtfs_file.zip" -o "validazione"

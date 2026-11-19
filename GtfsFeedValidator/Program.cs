@@ -23,7 +23,9 @@ public class Program
             options.AddDocumentFilterInstance(new AdditionalSchemasDocumentFilter());
         });
         builder.Services.AddOptions<GtfsValidatorSettings>()
-            .BindConfiguration(GtfsValidatorSettings.Path);
+            .BindConfiguration(GtfsValidatorSettings.Path)
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
 
         builder.Services.AddScoped<IGtfsFeedValidatorService, GtfsFeedValidatorService>();
         builder.Services.AddSingleton<IGtfsFeedValidatorWorkerService, GtfsFeedValidatorWorkerService>();

@@ -123,6 +123,14 @@ namespace GtfsFeedValidator.Endpoints
                         return Results.NoContent();
                     }
 
+                    if (validation.ValidationResult is null)
+                    {
+                        return Results.Problem(
+                            title: "Feed Validation Result Missing",
+                            detail: "The completed validation does not contain an HTML report",
+                            statusCode: StatusCodes.Status500InternalServerError);
+                    }
+
                     byte[] reportHtml = Encoding.UTF8.GetBytes(validation.ValidationResult);
 
                     return Results.File(reportHtml, contentType: "text/html", fileDownloadName: "report.html");
