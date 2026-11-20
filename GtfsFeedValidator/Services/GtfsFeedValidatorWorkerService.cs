@@ -45,49 +45,47 @@ namespace GtfsFeedValidator.Services
                             throw new FileNotFoundException("The configured GTFS validator JAR was not found.", gtfsValidatorJarFullPath);
                         }
 
+                        ProcessExecutionResult javaVersionResult = await RunJavaProcessAsync("-version");
+                        string javaVersionOutput = FormatProcessOutput(javaVersionResult);
+                        logger.LogInformation(
+                            "Java version for feed {feedId} (exit code {exitCode}):{newline}{output}",
+                            feed.Id,
+                            javaVersionResult.ExitCode,
+                            Environment.NewLine,
+                            javaVersionOutput);
+
+                        if (javaVersionResult.ExitCode != 0)
+                        {
+                            throw new InvalidOperationException(
+                                $"Could not read the Java version. Exit code: {javaVersionResult.ExitCode}. " +
+                                FormatProcessOutput(javaVersionResult));
+                        }
+
                         logger.LogInformation(
                             "Starting GTFS validator for feed {feedId}, input {inputPath}, output {outputPath}",
                             feed.Id,
                             feed.FilePath,
                             outputPath);
 
-                        var startInfo = new ProcessStartInfo
-                        {
-                            FileName = "java",
-                            RedirectStandardOutput = true,
-                            RedirectStandardError = true,
-                            UseShellExecute = false,
-                            CreateNoWindow = true
-                        };
-                        startInfo.ArgumentList.Add("-jar");
-                        startInfo.ArgumentList.Add(gtfsValidatorJarFullPath);
-                        startInfo.ArgumentList.Add("-i");
-                        startInfo.ArgumentList.Add(feed.FilePath);
-                        startInfo.ArgumentList.Add("-o");
-                        startInfo.ArgumentList.Add(outputPath);
+                        ProcessExecutionResult validatorResult = await RunJavaProcessAsync(
+                            "-jar",
+                            gtfsValidatorJarFullPath,
+                            "-i",
+                            feed.FilePath,
+                            "-o",
+                            outputPath);
+                        string validatorOutput = FormatProcessOutput(validatorResult);
+                        logger.LogInformation(
+                            "GTFS validator output for feed {feedId} (exit code {exitCode}):{newline}{output}",
+                            feed.Id,
+                            validatorResult.ExitCode,
+                            Environment.NewLine,
+                            validatorOutput);
 
-                        using var process = new Process
-                        {
-                            StartInfo = startInfo
-                        };
-
-                        if (!process.Start())
-                        {
-                            throw new InvalidOperationException("The GTFS validator process could not be started.");
-                        }
-
-                        Task<string> standardOutputTask = process.StandardOutput.ReadToEndAsync();
-                        Task<string> standardErrorTask = process.StandardError.ReadToEndAsync();
-                        await process.WaitForExitAsync();
-                        string standardOutput = await standardOutputTask;
-                        string standardError = await standardErrorTask;
-
-                        if (process.ExitCode != 0)
+                        if (validatorResult.ExitCode != 0)
                         {
                             throw new InvalidOperationException(
-                                $"GTFS validator exited with code {process.ExitCode}. " +
-                                $"Standard error: {TruncateProcessOutput(standardError)}. " +
-                                $"Standard output: {TruncateProcessOutput(standardOutput)}");
+                                $"GTFS validator exited with code {validatorResult.ExitCode}. {validatorOutput}");
                         }
 
                         string[] missingReports = new[] { jsonReportPath, htmlReportPath }
@@ -98,8 +96,7 @@ namespace GtfsFeedValidator.Services
                             throw new InvalidOperationException(
                                 $"GTFS validator exited successfully but did not create the expected report(s): " +
                                 $"{string.Join(", ", missingReports)}. " +
-                                $"Standard error: {TruncateProcessOutput(standardError)}. " +
-                                $"Standard output: {TruncateProcessOutput(standardOutput)}");
+                                validatorOutput);
                         }
 
                         string sessionId = Guid.NewGuid().ToString().Replace("-", "");
@@ -172,6 +169,52 @@ namespace GtfsFeedValidator.Services
                 ? output
                 : output[..maxLength] + "... (truncated)";
         }
+
+        private static async Task<ProcessExecutionResult> RunJavaProcessAsync(params string[] arguments)
+        {
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = "java",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            foreach (string argument in arguments)
+            {
+                startInfo.ArgumentList.Add(argument);
+            }
+
+            using var process = new Process { StartInfo = startInfo };
+            if (!process.Start())
+            {
+                throw new InvalidOperationException("The Java process could not be started.");
+            }
+
+            Task<string> standardOutputTask = process.StandardOutput.ReadToEndAsync();
+            Task<string> standardErrorTask = process.StandardError.ReadToEndAsync();
+            await process.WaitForExitAsync();
+
+            return new ProcessExecutionResult(
+                process.ExitCode,
+                await standardOutputTask,
+                await standardErrorTask);
+        }
+
+        private static string FormatProcessOutput(ProcessExecutionResult result)
+        {
+            string standardOutput = TruncateProcessOutput(result.StandardOutput).Trim();
+            string standardError = TruncateProcessOutput(result.StandardError).Trim();
+
+            return $"stdout: {(string.IsNullOrEmpty(standardOutput) ? "<empty>" : standardOutput)}" +
+                $"{Environment.NewLine}stderr: {(string.IsNullOrEmpty(standardError) ? "<empty>" : standardError)}";
+        }
+
+        private sealed record ProcessExecutionResult(
+            int ExitCode,
+            string StandardOutput,
+            string StandardError);
     }
 
     public interface IGtfsFeedValidatorWorkerService
