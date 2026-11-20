@@ -11,5 +11,7 @@
 
         [System.ComponentModel.DataAnnotations.Required]
         public string GtfsValidatorJarPath { get; set; } = string.Empty;
+
+        public string JavaExecutablePath { get; set; } = "java";
     }
 }

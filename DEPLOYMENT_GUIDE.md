@@ -301,7 +301,8 @@ Create `appsettings.Production.json`:
   "GtfsFeedValidatorConfiguration": {
     "ConnectionString": "C:\\ProgramData\\GtfsValidator\\gtfs-validator.db",
     "WorkingDirectory": "C:\\ProgramData\\GtfsValidator\\WorkDir",
-    "GtfsValidatorJarPath": "C:\\inetpub\\gtfs-validator\\gtfs-validator-8.0.1-cli.jar"
+    "GtfsValidatorJarPath": "C:\\inetpub\\gtfs-validator\\gtfs-validator-8.0.1-cli.jar",
+    "JavaExecutablePath": "C:\\Program Files\\Java\\jdk-17\\bin\\java.exe"
   }
 }
 ```
@@ -454,6 +455,9 @@ export GtfsFeedValidatorConfiguration__WorkingDirectory="/workdir"
 
 # GTFS Validator JAR path
 export GtfsFeedValidatorConfiguration__GtfsValidatorJarPath="/app/gtfs-validator-8.0.1-cli.jar"
+
+# Java executable path (defaults to java on PATH)
+export GtfsFeedValidatorConfiguration__JavaExecutablePath="/usr/bin/java"
 
 # ASP.NET Core environment
 export ASPNETCORE_ENVIRONMENT="Production"

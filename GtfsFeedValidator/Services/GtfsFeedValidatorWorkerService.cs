@@ -11,6 +11,9 @@ namespace GtfsFeedValidator.Services
         public async Task ProcessQueueAsync(CancellationToken stoppingToken)
         {
             string gtfsValidatorJarFullPath = Path.GetFullPath(configuration.Value.GtfsValidatorJarPath);
+            string javaExecutablePath = string.IsNullOrWhiteSpace(configuration.Value.JavaExecutablePath)
+                ? "java"
+                : configuration.Value.JavaExecutablePath.Trim();
             using var db = new LiteDatabase(configuration.Value.ConnectionString);
             {
                 var gtfsFeedValidationCollection = db.GetCollection<GtfsFeedValidation>(Constants.GtfsFeedValidationCollectionName);
@@ -45,10 +48,16 @@ namespace GtfsFeedValidator.Services
                             throw new FileNotFoundException("The configured GTFS validator JAR was not found.", gtfsValidatorJarFullPath);
                         }
 
-                        ProcessExecutionResult javaVersionResult = await RunJavaProcessAsync("-version");
+                        if (Path.IsPathFullyQualified(javaExecutablePath) && !File.Exists(javaExecutablePath))
+                        {
+                            throw new FileNotFoundException("The configured Java executable was not found.", javaExecutablePath);
+                        }
+
+                        ProcessExecutionResult javaVersionResult = await RunJavaProcessAsync(javaExecutablePath, "-version");
                         string javaVersionOutput = FormatProcessOutput(javaVersionResult);
                         logger.LogInformation(
-                            "Java version for feed {feedId} (exit code {exitCode}):{newline}{output}",
+                            "Java executable {javaExecutablePath}, version for feed {feedId} (exit code {exitCode}):{newline}{output}",
+                            javaExecutablePath,
                             feed.Id,
                             javaVersionResult.ExitCode,
                             Environment.NewLine,
@@ -68,6 +77,7 @@ namespace GtfsFeedValidator.Services
                             outputPath);
 
                         ProcessExecutionResult validatorResult = await RunJavaProcessAsync(
+                            javaExecutablePath,
                             "-jar",
                             gtfsValidatorJarFullPath,
                             "-i",
@@ -170,11 +180,13 @@ namespace GtfsFeedValidator.Services
                 : output[..maxLength] + "... (truncated)";
         }
 
-        private static async Task<ProcessExecutionResult> RunJavaProcessAsync(params string[] arguments)
+        private static async Task<ProcessExecutionResult> RunJavaProcessAsync(
+            string javaExecutablePath,
+            params string[] arguments)
         {
             var startInfo = new ProcessStartInfo
             {
-                FileName = "java",
+                FileName = javaExecutablePath,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,

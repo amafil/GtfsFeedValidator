@@ -89,7 +89,8 @@ The application uses the `GtfsValidatorSettings` configuration section:
   "GtfsFeedValidatorConfiguration": {
     "ConnectionString": "path/to/database.db",
     "WorkingDirectory": "path/to/working/directory",
-    "GtfsValidatorJarPath": "path/to/gtfs-validator.jar"
+    "GtfsValidatorJarPath": "path/to/gtfs-validator.jar",
+    "JavaExecutablePath": "java"
   }
 }
 ```
@@ -99,6 +100,7 @@ The application uses the `GtfsValidatorSettings` configuration section:
 - **ConnectionString**: Path to LiteDB database file
 - **WorkingDirectory**: Directory for temporary file storage during processing
 - **GtfsValidatorJarPath**: Path to the GTFS validator JAR file
+- **JavaExecutablePath**: Java executable to run; defaults to `java` on `PATH`. Set this to a full path such as `C:\\Program Files\\Java\\jdk-17\\bin\\java.exe` to select a specific installation.
 
 ## Deployment
 
